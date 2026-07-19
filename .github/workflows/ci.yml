@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate stamp files are non-empty and zlib-compressed
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            size=$(stat -c%s "$f")
+            if [ "$size" -eq 0 ]; then
+              echo "::error file=$f::empty file"
+              fail=1
+            fi
+            magic=$(head -c2 "$f" | xxd -p)
+            case "$magic" in
+              789c|78da|7801) ;;
+              *) echo "::error file=$f::not a recognized zlib stream (magic $magic)"; fail=1 ;;
+            esac
+          done < <(find . -type f \
+            -not -path './.git/*' \
+            -not -path './.github/*' \
+            -not -name 'README.md' \
+            -not -name 'LICENSE' \
+            -not -name '.gitignore' \
+            -print0)
+          exit $fail
